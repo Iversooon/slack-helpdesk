@@ -1,48 +1,47 @@
 require("dotenv").config();
-const express = require("express");
+const { App, ExpressReceiver } = require("@slack/bolt");
 const bodyParser = require("body-parser");
-const sqlite3 = require("sqlite3").verbose();
-const { App } = require("@slack/bolt");
+const Database = require("better-sqlite3");
 
-const app = express();
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// Receiver
+const receiver = new ExpressReceiver({
+  signingSecret: process.env.SLACK_SIGNING_SECRET,
+  endpoints: "/slack/events",
+  processBeforeResponse: true
+});
 
-// 🔥 Slack challenge handler
-app.post("/slack/events", (req, res, next) => {
+// Slack challenge fix
+receiver.app.use(bodyParser.json());
+receiver.app.post("/slack/events", (req, res, next) => {
   if (req.body.type === "url_verification") {
-    return res.status(200).send(req.body.challenge);
+    console.log("Slack challenge OK");
+    return res.status(200).send({ challenge: req.body.challenge });
   }
   next();
 });
 
 // Root test
-app.get("/", (req, res) => res.send("Helpdesk alive"));
+receiver.app.get("/", (req, res) => res.send("Helpdesk alive"));
 
-// Slack Bolt (no receiver)
-const bolt = new App({
+// Bolt App
+const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
-  signingSecret: process.env.SLACK_SIGNING_SECRET,
-  appToken: process.env.SLACK_APP_TOKEN,
-  socketMode: false
+  receiver
 });
 
-// Attach Bolt to Express
-app.post("/slack/events", bolt.requestListener());
-
-// DB
-const db = new sqlite3.Database("./tickets.db");
-db.run(`
+// Database
+const db = new Database("tickets.db");
+db.prepare(`
 CREATE TABLE IF NOT EXISTS tickets (
  ticket_no TEXT,
  employee_id TEXT,
  evp_id TEXT,
  description TEXT,
  status TEXT
-)`);
+)`).run();
 
 // Slash command
-bolt.command("/it-help", async ({ ack, body, client }) => {
+app.command("/it-help", async ({ ack, body, client }) => {
   await ack();
   await client.views.open({
     trigger_id: body.trigger_id,
@@ -61,8 +60,9 @@ bolt.command("/it-help", async ({ ack, body, client }) => {
   });
 });
 
-// Start server
+// Start
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+(async () => {
+  await app.start(PORT);
   console.log("⚡ Helpdesk running on", PORT);
-});
+})();
