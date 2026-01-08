@@ -1,7 +1,6 @@
-require("dotenv").config();
-const { App, ExpressReceiver } = require("@slack/bolt");
-const bodyParser = require("body-parser");
 const Database = require("better-sqlite3");
+const db = new Database("helpdesk.db");
+
 
 // Receiver
 const receiver = new ExpressReceiver({
