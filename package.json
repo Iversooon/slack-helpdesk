@@ -2,18 +2,13 @@
   "name": "slack-helpdesk",
   "version": "1.0.0",
   "main": "app.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node app.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "@slack/bolt": "^3.15.0",
-    "better-sqlite3": "^12.5.0",
-    "body-parser": "^1.20.4",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "sqlite3": "^5.1.7"
+    "@slack/bolt": "^3.14.0",
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.3.1"
   }
 }
