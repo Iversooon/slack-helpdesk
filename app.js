@@ -86,7 +86,9 @@ app.action("it_accept", async ({ ack, body, client }) => {
   text: `You accepted ticket ${ticketNo}`
  });
 });
+const PORT = process.env.PORT || 3000;
+
 (async () => {
- await app.start(3000);
- console.log("⚡ IT Helpdesk running on port 3000");
+  await app.start(PORT);
+  console.log("⚡ IT Helpdesk running on port " + PORT);
 })();
