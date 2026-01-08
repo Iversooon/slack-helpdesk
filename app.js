@@ -1,22 +1,12 @@
+require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
-
-
+const sqlite3 = require("sqlite3").verbose();
 const { App, ExpressReceiver } = require("@slack/bolt");
 
 const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  endpoints: "/slack/events",
   processBeforeResponse: true
-});
-
-// Slack URL Verification FIX
-receiver.app.use(bodyParser.json());
-receiver.app.post("/slack/events", (req, res, next) => {
-  if (req.body.type === "url_verification") {
-    return res.status(200).send({ challenge: req.body.challenge });
-  }
-  next();
 });
 
 const app = new App({
@@ -24,12 +14,7 @@ const app = new App({
   receiver
 });
 
-// Root route so Render shows something real
-receiver.app.get("/", (req, res) => {
-  res.send("IT Helpdesk running");
-});
-
-// Database
+// DB
 const db = new sqlite3.Database("./tickets.db");
 db.run(`
 CREATE TABLE IF NOT EXISTS tickets (
@@ -40,10 +25,21 @@ CREATE TABLE IF NOT EXISTS tickets (
  status TEXT
 )`);
 
+// Express first — NOT Bolt
+receiver.app.use(bodyParser.json());
+receiver.app.post("/slack/events", (req, res, next) => {
+  if (req.body.type === "url_verification") {
+    return res.status(200).send({ challenge: req.body.challenge });
+  }
+  next();
+});
+
+// Root test
+receiver.app.get("/", (req, res) => res.send("Helpdesk alive"));
+
 // Slash command
 app.command("/it-help", async ({ ack, body, client }) => {
   await ack();
-
   await client.views.open({
     trigger_id: body.trigger_id,
     view: {
@@ -61,25 +57,8 @@ app.command("/it-help", async ({ ack, body, client }) => {
   });
 });
 
-// Modal submit
-app.view("ticket_form", async ({ ack, body, client }) => {
-  await ack();
-
-  const desc = body.view.state.values.desc.value.value;
-  const ticketNo = "TKT-" + Date.now();
-
-  db.run(`INSERT INTO tickets VALUES(?,?,?,?,?)`,
-    [ticketNo, body.user.id, "EVP_SLACK_ID", desc, "PENDING_EVP"]
-  );
-
-  await client.chat.postMessage({
-    channel: "EVP_SLACK_ID",
-    text: `📝 Ticket ${ticketNo}\n${desc}`
-  });
-});
-
 const PORT = process.env.PORT || 3000;
 (async () => {
   await app.start(PORT);
-  console.log("⚡ IT Helpdesk running on port " + PORT);
+  console.log("⚡ Helpdesk running on", PORT);
 })();
