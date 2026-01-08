@@ -2,17 +2,33 @@ require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const sqlite3 = require("sqlite3").verbose();
-const { App, ExpressReceiver } = require("@slack/bolt");
+const { App } = require("@slack/bolt");
 
-const receiver = new ExpressReceiver({
-  signingSecret: process.env.SLACK_SIGNING_SECRET,
-  processBeforeResponse: true
+const app = express();
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// 🔥 Slack challenge handler
+app.post("/slack/events", (req, res, next) => {
+  if (req.body.type === "url_verification") {
+    return res.status(200).send(req.body.challenge);
+  }
+  next();
 });
 
-const app = new App({
+// Root test
+app.get("/", (req, res) => res.send("Helpdesk alive"));
+
+// Slack Bolt (no receiver)
+const bolt = new App({
   token: process.env.SLACK_BOT_TOKEN,
-  receiver
+  signingSecret: process.env.SLACK_SIGNING_SECRET,
+  appToken: process.env.SLACK_APP_TOKEN,
+  socketMode: false
 });
+
+// Attach Bolt to Express
+app.post("/slack/events", bolt.requestListener());
 
 // DB
 const db = new sqlite3.Database("./tickets.db");
@@ -25,20 +41,8 @@ CREATE TABLE IF NOT EXISTS tickets (
  status TEXT
 )`);
 
-// Express first — NOT Bolt
-receiver.app.use(bodyParser.json());
-receiver.app.post("/slack/events", (req, res, next) => {
-  if (req.body.type === "url_verification") {
-    return res.status(200).send({ challenge: req.body.challenge });
-  }
-  next();
-});
-
-// Root test
-receiver.app.get("/", (req, res) => res.send("Helpdesk alive"));
-
 // Slash command
-app.command("/it-help", async ({ ack, body, client }) => {
+bolt.command("/it-help", async ({ ack, body, client }) => {
   await ack();
   await client.views.open({
     trigger_id: body.trigger_id,
@@ -57,8 +61,8 @@ app.command("/it-help", async ({ ack, body, client }) => {
   });
 });
 
+// Start server
 const PORT = process.env.PORT || 3000;
-(async () => {
-  await app.start(PORT);
+app.listen(PORT, () => {
   console.log("⚡ Helpdesk running on", PORT);
-})();
+});
