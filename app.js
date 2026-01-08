@@ -1,35 +1,38 @@
+require("dotenv").config();
+const { App, ExpressReceiver } = require("@slack/bolt");
+const bodyParser = require("body-parser");
 const Database = require("better-sqlite3");
+
+// DATABASE
 const db = new Database("helpdesk.db");
 
-
-// Receiver
+// RECEIVER
 const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  endpoints: "/slack/events",
   processBeforeResponse: true
 });
 
-// Slack challenge fix
+// ENABLE JSON BODY PARSING
 receiver.app.use(bodyParser.json());
+
+// SLACK URL VERIFICATION FIX
 receiver.app.post("/slack/events", (req, res, next) => {
-  if (req.body.type === "url_verification") {
-    console.log("Slack challenge OK");
+  if (req.body && req.body.type === "url_verification") {
     return res.status(200).send({ challenge: req.body.challenge });
   }
   next();
 });
 
-// Root test
+// ROOT TEST
 receiver.app.get("/", (req, res) => res.send("Helpdesk alive"));
 
-// Bolt App
+// BOLT APP
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   receiver
 });
 
-// Database
-const db = new Database("tickets.db");
+// DATABASE TABLE
 db.prepare(`
 CREATE TABLE IF NOT EXISTS tickets (
  ticket_no TEXT,
@@ -39,7 +42,7 @@ CREATE TABLE IF NOT EXISTS tickets (
  status TEXT
 )`).run();
 
-// Slash command
+// SLASH COMMAND
 app.command("/it-help", async ({ ack, body, client }) => {
   await ack();
   await client.views.open({
@@ -59,7 +62,7 @@ app.command("/it-help", async ({ ack, body, client }) => {
   });
 });
 
-// Start
+// START SERVER
 const PORT = process.env.PORT || 3000;
 (async () => {
   await app.start(PORT);
