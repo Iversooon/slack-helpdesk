@@ -6,19 +6,21 @@ const Database = require("better-sqlite3");
 // DATABASE
 const db = new Database("helpdesk.db");
 
-// RECEIVER
+// RECEIVER — THIS IS THE IMPORTANT PART
 const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  processBeforeResponse: true
+  processBeforeResponse: true,
+  endpoints: "/slack/events"
 });
 
-// ENABLE JSON BODY PARSING
+// MUST be mounted BEFORE Bolt
 receiver.app.use(bodyParser.json());
 
-// SLACK URL VERIFICATION FIX
+// SLACK CHALLENGE HANDLER — BEFORE BOLT TOUCHES IT
 receiver.app.post("/slack/events", (req, res, next) => {
   if (req.body && req.body.type === "url_verification") {
-    return res.status(200).send({ challenge: req.body.challenge });
+    console.log("Slack challenge received");
+    return res.status(200).json({ challenge: req.body.challenge });
   }
   next();
 });
@@ -32,7 +34,7 @@ const app = new App({
   receiver
 });
 
-// DATABASE TABLE
+// DATABASE
 db.prepare(`
 CREATE TABLE IF NOT EXISTS tickets (
  ticket_no TEXT,
