@@ -1,4 +1,5 @@
-const { App } = require("@slack/bolt");
+const { App, ExpressReceiver } = require("@slack/bolt");
+const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
 
 const db = new sqlite3.Database("./tickets.db");
@@ -12,9 +13,14 @@ CREATE TABLE IF NOT EXISTS tickets (
  status TEXT
 )`);
 
+const receiver = new ExpressReceiver({
+  signingSecret: process.env.SLACK_SIGNING_SECRET,
+  endpoints: "/slack/events"
+});
+
 const app = new App({
- token: process.env.SLACK_BOT_TOKEN,
- signingSecret: process.env.SLACK_SIGNING_SECRET,
+  token: process.env.SLACK_BOT_TOKEN,
+  receiver
 });
 
 app.command("/it-help", async ({ ack, body, client }) => {
@@ -87,8 +93,6 @@ app.action("it_accept", async ({ ack, body, client }) => {
  });
 });
 const PORT = process.env.PORT || 3000;
-
-(async () => {
-  await app.start(PORT);
+receiver.app.listen(PORT, () => {
   console.log("⚡ IT Helpdesk running on port " + PORT);
-})();
+});
