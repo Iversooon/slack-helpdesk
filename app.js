@@ -1,10 +1,22 @@
-const { App, ExpressReceiver } = require("@slack/bolt");
-const sqlite3 = require("sqlite3").verbose();
+const express = require("express");
+const bodyParser = require("body-parser");
 
-// Create receiver
+
+const { App, ExpressReceiver } = require("@slack/bolt");
+
 const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  endpoints: "/slack/events"
+  endpoints: "/slack/events",
+  processBeforeResponse: true
+});
+
+// Slack URL Verification FIX
+receiver.app.use(bodyParser.json());
+receiver.app.post("/slack/events", (req, res, next) => {
+  if (req.body.type === "url_verification") {
+    return res.status(200).send({ challenge: req.body.challenge });
+  }
+  next();
 });
 
 const app = new App({
